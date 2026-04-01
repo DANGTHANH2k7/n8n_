@@ -1,0 +1,298 @@
+{
+  "name": "PostVisit - Q&A",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "postvisit/qa",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "d36fc4f2-fd2a-4d61-bf03-d5e389262995",
+      "name": "Webhook QA",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{$env.GOOGLE_SHEET_ID}}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Visits"
+        },
+        "options": {}
+      },
+      "id": "cdfc367e-31b4-4d59-b15c-58fb9828f7a3",
+      "name": "Read Visits",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        500,
+        320
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const visitId = $item(0).$node['Webhook QA'].json.body.visitId;\nconst patientName = $item(0).$node['Webhook QA'].json.body.patientName || '';\nconst question = $item(0).$node['Webhook QA'].json.body.question || '';\nconst rows = items.map(i => i.json);\n\nlet found = rows.find(r => r.visit_id === visitId);\nif (!found && patientName) {\n  const candidates = rows.filter(r => r.patient_name === patientName);\n  if (candidates.length) {\n    found = candidates[candidates.length - 1];\n  }\n}\n\nif (!found) {\n  return [{ json: { error: 'Visit not found', visitId, patientName, question } }];\n}\n\nreturn [{ json: {\n  visitId: found.visit_id,\n  patientName: found.patient_name,\n  diagnosis: found.diagnosis,\n  diagnosisSimplified: found.diagnosis_simplified,\n  doctorAdvice: found.doctor_advice || '',\n  medicationsJson: found.medications_json || '[]',\n  instructionsJson: found.instructions_json || '[]',\n  question\n} }];"
+      },
+      "id": "89d07f84-e9d6-4574-b4ec-7d63f5a24937",
+      "name": "Find Visit Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "79e8e83f-159f-45e5-ba31-29885335f601",
+              "leftValue": "={{$json.error}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5450f219-495f-4450-9f48-78daf2e8cf10",
+      "name": "Has Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        980,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, error: $json.error || 'Unknown error' } }}",
+        "options": {
+          "responseCode": 404
+        }
+      },
+      "id": "7cb9af04-74fe-4f9f-b355-d8fb4fc5f6a3",
+      "name": "Respond Not Found",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        1220,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{$env.GEMINI_API_KEY}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"Bạn là trợ lý AI hậu khám, nói tiếng Việt dễ hiểu và an toàn.\\n- Chỉ trả lời dựa trên ngữ cảnh hồ sơ bên dưới.\\n- Ưu tiên bám sát lời dặn bác sĩ.\\n- Không đưa chẩn đoán mới.\\n- Nếu có dấu hiệu nguy hiểm, khuyên bệnh nhân liên hệ bác sĩ/cấp cứu.\\n\\nNgữ cảnh bệnh nhân:\\n- Mã buổi khám: {{$json.visitId}}\\n- Tên: {{$json.patientName}}\\n- Chẩn đoán: {{$json.diagnosis}}\\n- Giải thích đơn giản: {{$json.diagnosisSimplified}}\\n- Lời dặn bác sĩ: {{$json.doctorAdvice}}\\n- Thuốc (JSON): {{$json.medicationsJson}}\\n- Hướng dẫn (JSON): {{$json.instructionsJson}}\\n\\nCâu hỏi bệnh nhân:\\n{{$json.question}}\"\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0.3\n  }\n}",
+        "options": {}
+      },
+      "id": "0f7bb7cc-88cb-4a31-9c11-818e80a25196",
+      "name": "Gemini Answer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1220,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const answer = $json.candidates?.[0]?.content?.parts?.[0]?.text || 'Xin lỗi, tôi chưa thể trả lời lúc này.';\nconst source = $item(0).$node['Find Visit Context'].json;\nconst now = new Date().toISOString();\n\nreturn [{\n  json: {\n    qa_id: `QA_${Date.now()}`,\n    visit_id: source.visitId,\n    patient_name: source.patientName,\n    question: source.question,\n    answer,\n    created_at: now\n  }\n}];"
+      },
+      "id": "24a6ef3f-a4f3-4540-bf9b-3af9d032d7f9",
+      "name": "Format QA Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1460,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{$env.GOOGLE_SHEET_ID}}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "QnA"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "qa_id": "={{$json.qa_id}}",
+            "visit_id": "={{$json.visit_id}}",
+            "patient_name": "={{$json.patient_name}}",
+            "question": "={{$json.question}}",
+            "answer": "={{$json.answer}}",
+            "created_at": "={{$json.created_at}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "5f1d291e-e9b6-4d84-bf4a-9fb4f1cf8574",
+      "name": "Append QA Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1700,
+        420
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, visitId: $json.visit_id, patientName: $json.patient_name, question: $json.question, answer: $json.answer, createdAt: $json.created_at } }}",
+        "options": {}
+      },
+      "id": "f668b982-89ff-4f82-851f-8ba22c2c3d16",
+      "name": "Respond QA",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        1940,
+        420
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook QA": {
+      "main": [
+        [
+          {
+            "node": "Read Visits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Visits": {
+      "main": [
+        [
+          {
+            "node": "Find Visit Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Visit Context": {
+      "main": [
+        [
+          {
+            "node": "Has Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Error?": {
+      "main": [
+        [
+          {
+            "node": "Respond Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Answer": {
+      "main": [
+        [
+          {
+            "node": "Format QA Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format QA Row": {
+      "main": [
+        [
+          {
+            "node": "Append QA Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append QA Row": {
+      "main": [
+        [
+          {
+            "node": "Respond QA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b4eb4d16-f8ee-4d4a-81d2-e5f9c5a0ea55",
+  "meta": {
+    "instanceId": "replace-after-import"
+  },
+  "id": "postvisit-qa",
+  "tags": []
+}

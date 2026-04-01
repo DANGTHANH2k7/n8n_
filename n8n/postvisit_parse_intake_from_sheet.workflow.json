@@ -1,0 +1,556 @@
+{
+  "name": "PostVisit - Parse Intake From Sheet",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "1c70f7f3-a8ca-4e8b-ab39-6b0d76f6f14f",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{$env.GOOGLE_SHEET_ID}}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Intake"
+        },
+        "options": {}
+      },
+      "id": "89df366e-eab4-4fcc-a369-c06f99fb4e85",
+      "name": "Read Intake Rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        460,
+        320
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = items.map(i => i.json);\nconst pending = rows.filter(r => {\n  const status = (r.parsed_status || 'pending').toLowerCase();\n  const hasRaw = (r.raw_note || '').trim().length > 0;\n  const hasAdvice = (r.doctor_advice || '').trim().length > 0;\n  return status === 'pending' && (hasRaw || hasAdvice);\n});\nif (!pending.length) return [{ json: { skip: true, message: 'No pending intake rows' } }];\nreturn pending.map(r => ({ json: {\n  intake_id: r.intake_id || `INTAKE_${Date.now()}`,\n  patient_name: r.patient_name || 'Unknown',\n  raw_note: r.raw_note || '',\n  doctor_advice: r.doctor_advice || '',\n  parsed_status: r.parsed_status || 'pending'\n} }));"
+      },
+      "id": "076f53aa-f9d0-4976-a4cd-b8a203dbdce2",
+      "name": "Filter Pending Intake",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        700,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "34dc16bb-c6ce-4bcf-b8bd-3630962119fd",
+              "leftValue": "={{$json.skip}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "5e1e4fbf-5475-4d2a-95dc-df7ef9c5af4a",
+      "name": "No Pending?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        940,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "845e0ce6-0168-4c6e-a958-5959d13078f0",
+      "name": "Split Intake One By One",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1180,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    intake_id: $json.intake_id,\n    patient_name: $json.patient_name,\n    raw_note: $json.raw_note,\n    doctor_advice: $json.doctor_advice || '',\n    geminiBody: {\n      contents: [\n        {\n          parts: [\n            {\n              text: `Ban la tro ly y khoa hau kham.\n\nYEU CAU BAT BUOC:\n1) Chi trich xuat thong tin da co trong du lieu bac si nhap.\n2) KHONG duoc suy dien, KHONG duoc tu bo sung gio uong thuoc, lieu dung hoac loi dan.\n3) Neu khong co thong tin thi de trong hoac ghi \"chua duoc chi dinh\".\n4) Truong doctorAdvice phai giu nguyen y nghia loi dan cua bac si.\n\nTra ve DUY NHAT JSON hop le (khong markdown, khong giai thich):\n\n{\n  \"diagnosis\": \"...\",\n  \"diagnosisSimplified\": \"...\",\n  \"doctorAdvice\": \"...\",\n  \"medications\": [\n    {\n      \"name\": \"...\",\n      \"dosage\": \"...\",\n      \"frequency\": \"...\",\n      \"timing\": \"...\",\n      \"days\": 0,\n      \"purpose\": \"...\"\n    }\n  ],\n  \"instructions\": [\n    {\"action\":\"...\",\"timing\":\"...\",\"importance\":\"High|Medium|Low\"}\n  ],\n  \"redFlags\": [\n    {\"symptom\":\"...\",\"action\":\"...\"}\n  ],\n  \"followUp\": {\"date\":\"...\",\"action\":\"...\"},\\n  \"unaskedQuestions\": [\"...\"]\\n}\n\nGhi chu kham (raw_note):\n${$json.raw_note}\n\nLoi dan bac si (doctor_advice):\n${$json.doctor_advice || ''}`\n            }\n          ]\n        }\n      ],\n      generationConfig: { temperature: 0.1 }\n    }\n  }\n}];"
+      },
+      "id": "9e9f01ec-fbc7-4d76-aef3-c68e1579ffaf",
+      "name": "Build Gemini Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1420,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={{$env.GEMINI_API_KEY}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.geminiBody}}",
+        "options": {}
+      },
+      "id": "9ac5eb8f-644a-46c4-b8b1-0d6ed163f6d2",
+      "name": "Gemini Parse Intake",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1660,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $item(0).$node['Build Gemini Request'].json;\nconst visitId = `V${Date.now()}`;\nconst now = new Date().toISOString();\nlet parseError = '';\nlet parsed = { diagnosis: '', diagnosisSimplified: '', doctorAdvice: '', medications: [], instructions: [], redFlags: [], followUp: {}, unaskedQuestions: [] };\n\ntry {\n  const raw = $json.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\n  const cleaned = raw.replace(/```json|```/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parseError = String(e.message || e);\n}\n\nreturn [{\n  json: {\n    intake_id: source.intake_id,\n    patient_name: source.patient_name,\n    raw_note: source.raw_note,\n    visit_id: visitId,\n    parsed_status: parseError ? 'error' : 'done',\n    parsed_at: now,\n    error_message: parseError,\n    diagnosis: parsed.diagnosis || '',\n    diagnosis_simplified: parsed.diagnosisSimplified || '',\n    doctor_advice: parsed.doctorAdvice || source.doctor_advice || '',\n    medications_json: JSON.stringify(parsed.medications || []),\n    instructions_json: JSON.stringify(parsed.instructions || []),\n    red_flags_json: JSON.stringify(parsed.redFlags || []),\n    follow_up_json: JSON.stringify(parsed.followUp || {}),\\n    unasked_questions_json: JSON.stringify(parsed.unaskedQuestions || [])\n  }\n}];"
+      },
+      "id": "6a10ddd8-462b-4f99-83af-b6f3f95d6f8d",
+      "name": "Normalize Parsed Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1900,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "47bb75df-1f09-48e0-a4cf-e07d00644a96",
+              "leftValue": "={{$json.parsed_status}}",
+              "rightValue": "error",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c6f4d68a-ebca-4ecb-abf1-1f25e4f4f3fc",
+      "name": "Parse Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2140,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{$env.GOOGLE_SHEET_ID}}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Visits"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "visit_id": "={{$json.visit_id}}",
+            "patient_name": "={{$json.patient_name}}",
+            "diagnosis": "={{$json.diagnosis}}",
+            "diagnosis_simplified": "={{$json.diagnosis_simplified}}",
+            "medications_json": "={{$json.medications_json}}",
+            "instructions_json": "={{$json.instructions_json}}",
+            "red_flags_json": "={{$json.red_flags_json}}",
+            "follow_up_json": "={{$json.follow_up_json}}",
+            "recording_text": "={{$json.raw_note}}",
+            "doctor_advice": "={{$json.doctor_advice}}",
+            "created_at": "={{$json.parsed_at}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "55d95b4e-c04d-4676-a517-35f80dd38374",
+      "name": "Append Structured Visit",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2380,
+        560
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const meds = JSON.parse($json.medications_json || '[]');\nconst out = [];\nfor (const med of meds) {\n  const timingText = String(med.timing || '').trim();\n  if (!timingText || timingText.toLowerCase() === 'chua duoc chi dinh') continue;\n  const slots = timingText.split(/[+,;\\/]/).map(s => s.trim()).filter(Boolean);\n  for (const slot of slots) {\n    out.push({\n      json: {\n        reminder_id: `R_${$json.visit_id}_${Date.now()}_${Math.floor(Math.random()*10000)}`,\n        visit_id: $json.visit_id,\n        patient_name: $json.patient_name,\n        medication_name: med.name || '',\n        dosage: med.dosage || '',\n        time_slot: slot,\n        frequency: med.frequency || '',\n        completed: 'FALSE',\n        last_reminder: $json.parsed_at\n      }\n    });\n  }\n}\nreturn out;"
+      },
+      "id": "4d8c9ac8-f14b-4526-b3b3-f9dfa36995e3",
+      "name": "Build Reminder Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2620,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{$env.GOOGLE_SHEET_ID}}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Reminders"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "reminder_id": "={{$json.reminder_id}}",
+            "visit_id": "={{$json.visit_id}}",
+            "patient_name": "={{$json.patient_name}}",
+            "medication_name": "={{$json.medication_name}}",
+            "dosage": "={{$json.dosage}}",
+            "time_slot": "={{$json.time_slot}}",
+            "frequency": "={{$json.frequency}}",
+            "completed": "={{$json.completed}}",
+            "last_reminder": "={{$json.last_reminder}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "1487f327-b6f0-4fe8-b7f2-bf69782ca8c5",
+      "name": "Append Reminders",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        560
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{$env.GOOGLE_SHEET_ID}}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Intake"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "intake_id"
+          ],
+          "value": {
+            "intake_id": "={{$json.intake_id}}",
+            "parsed_status": "={{$json.parsed_status}}",
+            "parsed_at": "={{$json.parsed_at}}",
+            "visit_id": "={{$json.visit_id}}",
+            "error_message": "={{$json.error_message}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "2f3db2a6-c0d5-4372-b4f9-5a333d4f53ac",
+      "name": "Update Intake Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2380,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const qs = JSON.parse($json.unasked_questions_json || '[]');\nconst out = [];\nfor (const q of qs) {\n  const text = String(q || '').trim();\n  if (!text) continue;\n  out.push({\n    json: {\n      question_id: `PQ_${$json.visit_id}_${Date.now()}_${Math.floor(Math.random()*10000)}`,\n      visit_id: $json.visit_id,\n      patient_name: $json.patient_name,\n      patient_question: text,\n      doctor_answer: '',\n      status: 'pending',\n      created_at: $json.parsed_at,\n      answered_at: ''\n    }\n  });\n}\nreturn out;"
+      },
+      "id": "cfa10f8e-e2d6-4d55-9f11-37a4839ed5c0",
+      "name": "Build Patient Questions Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2620,
+        760
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{$env.GOOGLE_SHEET_ID}}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "PatientQuestions"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "question_id": "={{$json.question_id}}",
+            "visit_id": "={{$json.visit_id}}",
+            "patient_name": "={{$json.patient_name}}",
+            "patient_question": "={{$json.patient_question}}",
+            "doctor_answer": "={{$json.doctor_answer}}",
+            "status": "={{$json.status}}",
+            "created_at": "={{$json.created_at}}",
+            "answered_at": "={{$json.answered_at}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "2ec3ab32-f34e-4cd8-b7c5-1e9e530cfdf8",
+      "name": "Append Patient Questions",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2860,
+        760
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Google Sheets OAuth2"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Read Intake Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Intake Rows": {
+      "main": [
+        [
+          {
+            "node": "Filter Pending Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Pending Intake": {
+      "main": [
+        [
+          {
+            "node": "No Pending?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Pending?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Split Intake One By One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Intake One By One": {
+      "main": [
+        [
+          {
+            "node": "Build Gemini Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Gemini Request": {
+      "main": [
+        [
+          {
+            "node": "Gemini Parse Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Parse Intake": {
+      "main": [
+        [
+          {
+            "node": "Normalize Parsed Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Parsed Result": {
+      "main": [
+        [
+          {
+            "node": "Parse Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Error?": {
+      "main": [
+        [
+          {
+            "node": "Update Intake Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Structured Visit",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Intake Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Structured Visit": {
+      "main": [
+        [
+          {
+            "node": "Build Reminder Items",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Patient Questions Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reminder Items": {
+      "main": [
+        [
+          {
+            "node": "Append Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Patient Questions Rows": {
+      "main": [
+        [
+          {
+            "node": "Append Patient Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8ef38e4f-56d0-4e6e-9059-c3ce0ca30fd6",
+  "meta": {
+    "instanceId": "replace-after-import"
+  },
+  "id": "postvisit-parse-intake-from-sheet",
+  "tags": []
+}
