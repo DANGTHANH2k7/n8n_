@@ -1,0 +1,1386 @@
+{
+  "name": "PostVisit - Parse Intake From Sheet",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Parse intake from sheet\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2512,
+        48
+      ],
+      "id": "25f6f6a4-1c9b-4bed-94ff-f846142ccd26",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "## QnA \n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2512,
+        448
+      ],
+      "id": "7f8b456b-c885-486c-8f4f-e582e5c93f84",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## Reminder\n"
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2496,
+        832
+      ],
+      "id": "51283e83-ede5-4cc1-bcca-6f28a1f07637",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */6 * * *"
+            }
+          ]
+        }
+      },
+      "id": "6b76bf9b-b89c-49e1-9220-99de2c701b0f",
+      "name": "Every 6 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2208,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{$env.GOOGLE_SHEET_ID}}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Reminders"
+        },
+        "options": {}
+      },
+      "id": "46d86d2e-1186-42af-8f34-88333d2d4108",
+      "name": "Read Reminders",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1968,
+        864
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HLVLHyVgg6Jxdf2f",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst hh = String(now.getHours()).padStart(2, '0');\nconst rows = items.map(i => i.json);\n\nconst due = rows.filter(r => {\n  if ((r.completed || '').toUpperCase() === 'TRUE') return false;\n  const slot = (r.time_slot || '').trim();\n  const hour = slot.split(':')[0]?.padStart(2, '0');\n  return hour === hh;\n});\n\nif (!due.length) return [{ json: { none: true, message: 'No reminders due this hour', at: now.toISOString() } }];\n\nreturn due.map(r => ({\n  json: {\n    reminder_id: r.reminder_id,\n    patient_id: r.patient_id,\n    visit_date: r.visit_date,\n    patient_name: r.patient_name,\n    medication_name: r.medication_name,\n    dosage: r.dosage,\n    time_slot: r.time_slot,\n    message: `Nhac nho: ${r.patient_name} den gio dung ${r.medication_name} ${r.dosage} (${r.time_slot})`,\n    sent_at: now.toISOString()\n  }\n}));"
+      },
+      "id": "c1654c2c-5976-4b4a-9128-4d34d7f1911f",
+      "name": "Filter Due Reminders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1728,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3f3f4bfd-fde8-47d9-9772-05c503663ad7",
+              "leftValue": "={{$json.none}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e06d14a8-b38a-4cc5-82ba-227418ce2264",
+      "name": "No Due Items?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1488,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{$env.GOOGLE_SHEET_ID}}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ReminderLog"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "log_id": "={{'LOG_' + Date.now() + '_' + Math.floor(Math.random()*10000)}}",
+            "reminder_id": "={{$json.reminder_id}}",
+            "patient_id": "={{$json.patient_id}}",
+            "visit_date": "={{$json.visit_date}}",
+            "patient_name": "={{$json.patient_name}}",
+            "medication_name": "={{$json.medication_name}}",
+            "dosage": "={{$json.dosage}}",
+            "time_slot": "={{$json.time_slot}}",
+            "message": "={{$json.message}}",
+            "sent_at": "={{$json.sent_at}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "f4d91555-a34d-4c73-9c24-37fcff7cb5ed",
+      "name": "Append Reminder Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1248,
+        960
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HLVLHyVgg6Jxdf2f",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Optional: call webhook/Slack/Email here.\n// For MVP demo, this node just passes data through for logging.\nreturn items;"
+      },
+      "id": "0af7fc80-d94d-46c2-b7e9-0752b9069992",
+      "name": "Dispatch Notification Stub",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1248,
+        752
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "postvisit/qa",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "174b8002-d361-4494-8267-f16e1dbbee99",
+      "name": "Webhook QA",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -2208,
+        464
+      ],
+      "webhookId": "77edf472-f13f-407c-b6cc-bc5ac2f0f8b0"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{$env.GOOGLE_SHEET_ID}}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Visits"
+        },
+        "options": {}
+      },
+      "id": "baf516d0-6622-4566-aa2b-c8bf86295759",
+      "name": "Read Visits",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1968,
+        464
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HLVLHyVgg6Jxdf2f",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const patientId = $item(0).$node['Webhook QA'].json.body.patientId;\nconst question = $item(0).$node['Webhook QA'].json.body.question || '';\nconst rows = items.map(i => i.json);\n\nconst patientVisits = rows.filter(r => String(r.patient_id || r.ma_benh_nhan || '') === String(patientId));\n\nif (!patientVisits.length) {\n  return [{ json: { error: 'Patient not found', patientId, question } }];\n}\n\n// Sort visits by date conceptually, assuming they are appended chronologically\nconst latestVisit = patientVisits[patientVisits.length - 1];\n\nconst context = patientVisits.map(v => `Ngày khám: ${v.visit_date}\\nChẩn đoán: ${v.diagnosis || v.chan_doan}\\nLời dặn: ${v.doctor_advice || v.loi_dan || ''}\\nThuốc: ${v.medications_json || '[]'}\\nHướng dẫn: ${v.instructions_json || '[]'}`).join('\\n\\n---\\n\\n');\n\nreturn [{ json: {\n  patientId: latestVisit.patient_id,\n  patientName: latestVisit.patient_name,\n  latestVisitDate: latestVisit.visit_date,\n  context,\n  question\n} }];"
+      },
+      "id": "a04ed3c4-b3c9-429f-953a-1ebc27d39e99",
+      "name": "Find Visit Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1728,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "79e8e83f-159f-45e5-ba31-29885335f601",
+              "leftValue": "={{$json.error}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d6b357a6-f6be-4382-9272-f38016d71c9e",
+      "name": "Has Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1488,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, error: $json.error || 'Unknown error' } }}",
+        "options": {
+          "responseCode": 404
+        }
+      },
+      "id": "1b0db4ee-7cfb-4ce1-a142-02fd51589712",
+      "name": "Respond Not Found",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        -1248,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{$env.GEMINI_API_KEY}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"Bạn là trợ lý AI hậu khám, nói tiếng Việt dễ hiểu và an toàn.\\n- Chỉ trả lời dựa trên lịch sử hồ sơ khám bệnh bên dưới.\\n- Ưu tiên bám sát lời dặn bác sĩ.\\n- Không đưa chẩn đoán mới.\\n- Nếu có dấu hiệu nguy hiểm, khuyên bệnh nhân liên hệ bác sĩ/cấp cứu.\\n\\nLỊCH SỬ KHÁM BỆNH:\\n- Mã bệnh nhân: {{$json.patientId}}\\n- Tên: {{$json.patientName}}\\n\\n{{$json.context}}\\n\\nCÂU HỎI CỦA BỆNH NHÂN:\\n{{$json.question}}\"\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0.3\n  }\n}",
+        "options": {}
+      },
+      "id": "3a07ebaa-9001-4a94-8427-935d8722ea30",
+      "name": "Gemini Answer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1248,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const answer = $json.candidates?.[0]?.content?.parts?.[0]?.text || 'Xin lỗi, tôi chưa thể trả lời lúc này.';\nconst source = $item(0).$node['Find Visit Context'].json;\nconst now = new Date().toISOString();\n\nreturn [{\n  json: {\n    qa_id: `QA_${Date.now()}`,\n    patient_id: source.patientId,\n    visit_date: source.latestVisitDate,\n    patient_name: source.patientName,\n    question: source.question,\n    answer,\n    created_at: now\n  }\n}];"
+      },
+      "id": "efd5eb05-b273-455a-a678-ae4925f4bcba",
+      "name": "Format QA Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1008,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{$env.GOOGLE_SHEET_ID}}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "QnA"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "qa_id": "={{$json.qa_id}}",
+            "patient_id": "={{$json.patient_id}}",
+            "visit_date": "={{$json.visit_date}}",
+            "patient_name": "={{$json.patient_name}}",
+            "question": "={{$json.question}}",
+            "answer": "={{$json.answer}}",
+            "created_at": "={{$json.created_at}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "469aeee3-85d9-4a77-8833-a8dbe9f892da",
+      "name": "Append QA Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -768,
+        560
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HLVLHyVgg6Jxdf2f",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, patientId: $json.patient_id, visitDate: $json.visit_date, patientName: $json.patient_name, question: $json.question, answer: $json.answer, createdAt: $json.created_at } }}",
+        "options": {}
+      },
+      "id": "9c74140f-ba8b-4804-b5a5-a928fa119103",
+      "name": "Respond QA",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.3,
+      "position": [
+        -528,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "6c02675d-9a62-4c61-8264-4382e149e5fa",
+      "name": "Every 5 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2224,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{$env.GOOGLE_SHEET_ID}}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Intake"
+        },
+        "options": {}
+      },
+      "id": "e785e7ca-8d55-4153-8b65-31105cad41dd",
+      "name": "Read Intake Rows",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -1984,
+        64
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HLVLHyVgg6Jxdf2f",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = items.map(i => i.json);\nconst pending = rows.filter(r => {\n  const status = (r.parsed_status || 'pending').toLowerCase();\n  const hasRaw = (r.raw_note || '').trim().length > 0;\n  const hasAdvice = (r.doctor_advice || '').trim().length > 0;\n  return status === 'pending' && (hasRaw || hasAdvice);\n});\nif (!pending.length) return [{ json: { skip: true, message: 'No pending intake rows' } }];\nreturn pending.map(r => ({ json: {\n  intake_id: r.intake_id || `INTAKE_${Date.now()}`,\n  patient_name: r.patient_name || 'Unknown',\n  raw_note: r.raw_note || '',\n  doctor_advice: r.doctor_advice || '',\n  parsed_status: r.parsed_status || 'pending'\n} }));"
+      },
+      "id": "de5ac410-1b7f-4347-86ce-f032d1009c55",
+      "name": "Filter Pending Intake",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1744,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "34dc16bb-c6ce-4bcf-b8bd-3630962119fd",
+              "leftValue": "={{$json.skip}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4f7fb4b5-19ea-4d87-9abd-2ef1514fa291",
+      "name": "No Pending?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1504,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "f36c82d9-d95a-4156-b69a-cf11fdf4152d",
+      "name": "Split Intake One By One",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1264,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    intake_id: $json.intake_id,\n    patient_name: $json.patient_name,\n    raw_note: $json.raw_note,\n    doctor_advice: $json.doctor_advice || '',\n    geminiBody: {\n      contents: [\n        {\n          parts: [\n            {\n              text: `Ban la tro ly y khoa hau kham.\n\nYEU CAU BAT BUOC:\n1) Chi trich xuat thong tin da co trong du lieu bac si nhap.\n2) KHONG duoc suy dien, KHONG duoc tu bo sung gio uong thuoc, lieu dung hoac loi dan.\n3) Neu khong co thong tin thi de trong hoac ghi \"chua duoc chi dinh\".\n4) Truong doctorAdvice phai giu nguyen y nghia loi dan cua bac si.\n\nTra ve DUY NHAT JSON hop le (khong markdown, khong giai thich):\n\n{\n  \"diagnosis\": \"...\",\n  \"diagnosisSimplified\": \"...\",\n  \"doctorAdvice\": \"...\",\n  \"medications\": [\n    {\n      \"name\": \"...\",\n      \"dosage\": \"...\",\n      \"frequency\": \"...\",\n      \"timing\": \"...\",\n      \"days\": 0,\n      \"purpose\": \"...\"\n    }\n  ],\n  \"instructions\": [\n    {\"action\":\"...\",\"timing\":\"...\",\"importance\":\"High|Medium|Low\"}\n  ],\n  \"redFlags\": [\n    {\"symptom\":\"...\",\"action\":\"...\"}\n  ],\n  \"followUp\": {\"date\":\"...\",\"action\":\"...\"},\\n  \"unaskedQuestions\": [\"...\"]\\n}\n\nGhi chu kham (raw_note):\n${$json.raw_note}\n\nLoi dan bac si (doctor_advice):\n${$json.doctor_advice || ''}`\n            }\n          ]\n        }\n      ],\n      generationConfig: { temperature: 0.1 }\n    }\n  }\n}];"
+      },
+      "id": "9ba9d506-9a4b-4636-9346-69bc058f9142",
+      "name": "Build Gemini Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1024,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{$env.GEMINI_API_KEY}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{$json.geminiBody}}",
+        "options": {}
+      },
+      "id": "4509b58a-f31b-4d6e-97c1-3242bdf26354",
+      "name": "Gemini Parse Intake",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -784,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $item(0).$node['Build Gemini Request'].json;\nconst visitId = `V${Date.now()}`;\nconst now = new Date().toISOString();\nlet parseError = '';\nlet parsed = { diagnosis: '', diagnosisSimplified: '', doctorAdvice: '', medications: [], instructions: [], redFlags: [], followUp: {}, unaskedQuestions: [] };\n\ntry {\n  const raw = $json.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\n  const cleaned = raw.replace(/```json|```/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parseError = String(e.message || e);\n}\n\nreturn [{\n  json: {\n    intake_id: source.intake_id,\n    patient_name: source.patient_name,\n    raw_note: source.raw_note,\n    visit_id: visitId,\n    parsed_status: parseError ? 'error' : 'done',\n    parsed_at: now,\n    error_message: parseError,\n    diagnosis: parsed.diagnosis || '',\n    diagnosis_simplified: parsed.diagnosisSimplified || '',\n    doctor_advice: parsed.doctorAdvice || source.doctor_advice || '',\n    medications_json: JSON.stringify(parsed.medications || []),\n    instructions_json: JSON.stringify(parsed.instructions || []),\n    red_flags_json: JSON.stringify(parsed.redFlags || []),\n    follow_up_json: JSON.stringify(parsed.followUp || {}),    unasked_questions_json: JSON.stringify(parsed.unaskedQuestions || [])\n  }\n}];"
+      },
+      "id": "e5d519b1-cfd9-4778-8c98-e528fbffc917",
+      "name": "Normalize Parsed Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -544,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "47bb75df-1f09-48e0-a4cf-e07d00644a96",
+              "leftValue": "={{$json.parsed_status}}",
+              "rightValue": "error",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2f2490cd-72f6-4127-be8d-2114e5cec28b",
+      "name": "Parse Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -304,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "=1ObK98N2D7gm1ZM5I6l7K1DHLZCM7uV87zkaNrLmgwWg",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Visits",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "patient_id": "={{ $('Read Intake Rows').item.json.patient_id }}",
+            "visit_date": "={{ $('Read Intake Rows').item.json.visit_date }}",
+            "patient_name": "={{ $json.patient_name }}",
+            "diagnosis": "={{ $json.diagnosis }}",
+            "diagnosis_simplified": "={{ $json.diagnosis_simplified }}",
+            "doctor_advice": "={{ $json.doctor_advice }}",
+            "medications_json": "={{ $json.medications_json }}",
+            "instructions_json": "={{ $json.instructions_json }}",
+            "red_flags_json": "={{ $json.red_flags_json }}",
+            "follow_up_json": "={{ $json.follow_up_json }}",
+            "created_at": "={{ $json.parsed_at }}",
+            "recording_text": "={{ $('Read Intake Rows').item.json.raw_note }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "patient_id",
+              "displayName": "patient_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "visit_date",
+              "displayName": "visit_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "diagnosis",
+              "displayName": "diagnosis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "diagnosis_simplified",
+              "displayName": "diagnosis_simplified",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "doctor_advice",
+              "displayName": "doctor_advice",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "medications_json",
+              "displayName": "medications_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "instructions_json",
+              "displayName": "instructions_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "red_flags_json",
+              "displayName": "red_flags_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "follow_up_json",
+              "displayName": "follow_up_json",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "recording_text",
+              "displayName": "recording_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "74e6b558-8b2e-4b78-bb0e-b629e55f57a9",
+      "name": "Append Structured Visit",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -64,
+        304
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HLVLHyVgg6Jxdf2f",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy data gốc từ bước Normalize (tránh bị Google Sheets làm mất)\nconst source = $items('Normalize Parsed Result')[0].json;\nconst meds = JSON.parse(source.medications_json || '[]');\nconst out = [];\n\nfor (const med of meds) {\n  const timingText = String(med.timing || '').trim();\n  if (!timingText || timingText.toLowerCase() === 'chua duoc chi dinh') continue;\n  \n  let slots = [];\n  // Tìm mốc giờ chuẩn xác (vd: \"08:00\", \"20:00\")\n  const timeRegex = /\\d{1,2}:\\d{2}/g;\n  const timeMatches = timingText.match(timeRegex);\n  \n  if (timeMatches && timeMatches.length > 0) {\n    // Nếu tìm thấy giờ chuẩn (HH:mm) thì dùng luôn\n    slots = timeMatches;\n  } else {\n    // Nếu không có giờ chuẩn, cắt chuỗi theo dấu phẩy hoặc chữ \"và\", \"va\"\n    slots = timingText\n      .split(/(?:[+,;\\/]| và | va | and )/i)\n      .map(s => s.replace(/^(lúc|luc)\\s+/i, '').trim()) // Xóa chữ \"lúc\" ở đầu\n      .filter(Boolean);\n  }\n\n  for (const slot of slots) {\n    out.push({\n      json: {\n        reminder_id: `R_${source.patient_id}_${source.visit_date}_${Date.now()}_${Math.floor(Math.random()*10000)}`,\n        patient_id: source.patient_id,\n        visit_date: source.visit_date,\n        patient_name: source.patient_name,\n        medication_name: med.name || '',\n        dosage: med.dosage || '',\n        time_slot: slot,\n        frequency: med.frequency || '',\n        completed: 'FALSE',\n        last_reminder: source.parsed_at\n      }\n    });\n  }\n}\nreturn out;"
+      },
+      "id": "f7c622e9-a105-4a0d-9483-85cd9d4d8eb0",
+      "name": "Build Reminder Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "=1ObK98N2D7gm1ZM5I6l7K1DHLZCM7uV87zkaNrLmgwWg",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Reminders"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "reminder_id": "={{$json.reminder_id}}",
+            "patient_name": "={{$json.patient_name}}",
+            "medication_name": "={{$json.medication_name}}",
+            "dosage": "={{$json.dosage}}",
+            "time_slot": "={{$json.time_slot}}",
+            "frequency": "={{$json.frequency}}",
+            "completed": "={{$json.completed}}",
+            "last_reminder": "={{$json.last_reminder}}",
+            "patient_id": "={{ $('Read Intake Rows').item.json.patient_id }}",
+            "visit_date": "={{ $('Read Intake Rows').item.json.visit_date }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "reminder_id",
+              "displayName": "reminder_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patient_id",
+              "displayName": "patient_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "visit_date",
+              "displayName": "visit_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "medication_name",
+              "displayName": "medication_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "dosage",
+              "displayName": "dosage",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "time_slot",
+              "displayName": "time_slot",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "frequency",
+              "displayName": "frequency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "completed",
+              "displayName": "completed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "last_reminder",
+              "displayName": "last_reminder",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "17ba9d80-2393-4670-9411-2d663856200c",
+      "name": "Append Reminders",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        416,
+        304
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HLVLHyVgg6Jxdf2f",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{$env.GOOGLE_SHEET_ID}}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Intake"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "matchingColumns": [
+            "intake_id"
+          ],
+          "value": {
+            "intake_id": "={{$json.intake_id}}",
+            "parsed_status": "={{$json.parsed_status}}",
+            "parsed_at": "={{$json.parsed_at}}",
+            "visit_id": "={{$json.visit_id}}",
+            "error_message": "={{$json.error_message}}"
+          }
+        },
+        "options": {}
+      },
+      "id": "43058c4c-6d61-44e9-9c37-2eeaf0a54305",
+      "name": "Update Intake Status",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -64,
+        32
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HLVLHyVgg6Jxdf2f",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lấy data gốc từ bước Normalize (tránh bị Google Sheets làm mất)\nconst source = $items('Normalize Parsed Result')[0].json;\nconst qs = JSON.parse(source.unasked_questions_json || '[]');\nconst out = [];\n\nfor (const q of qs) {\n  const text = String(q || '').trim();\n  if (!text) continue;\n  \n  out.push({\n    json: {\n      question_id: `PQ_${source.patient_id}_${source.visit_date}_${Date.now()}_${Math.floor(Math.random()*10000)}`,\n      patient_id: source.patient_id,\n      visit_date: source.visit_date,\n      patient_name: source.patient_name,\n      patient_question: text,\n      doctor_answer: '',\n      status: 'pending',\n      created_at: source.parsed_at,\n      answered_at: ''\n    }\n  });\n}\nreturn out;"
+      },
+      "id": "f74eab11-24cc-4b94-b178-1cc8e1a7cf95",
+      "name": "Build Patient Questions Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "=1ObK98N2D7gm1ZM5I6l7K1DHLZCM7uV87zkaNrLmgwWg",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "PatientQuestions"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "question_id": "={{$json.question_id}}",
+            "patient_name": "={{$json.patient_name}}",
+            "patient_question": "={{$json.patient_question}}",
+            "doctor_answer": "={{$json.doctor_answer}}",
+            "status": "={{$json.status}}",
+            "created_at": "={{$json.created_at}}",
+            "answered_at": "={{$json.answered_at}}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "question_id",
+              "displayName": "question_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patient_id",
+              "displayName": "patient_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "visit_date",
+              "displayName": "visit_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "patient_question",
+              "displayName": "patient_question",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "doctor_answer",
+              "displayName": "doctor_answer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "created_at",
+              "displayName": "created_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "answered_at",
+              "displayName": "answered_at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "c07c437a-2914-442e-82f6-ea5f70424ac9",
+      "name": "Append Patient Questions",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        416,
+        496
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "HLVLHyVgg6Jxdf2f",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 6 Hours": {
+      "main": [
+        [
+          {
+            "node": "Read Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Reminders": {
+      "main": [
+        [
+          {
+            "node": "Filter Due Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Due Reminders": {
+      "main": [
+        [
+          {
+            "node": "No Due Items?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Due Items?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Dispatch Notification Stub",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append Reminder Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook QA": {
+      "main": [
+        [
+          {
+            "node": "Read Visits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Visits": {
+      "main": [
+        [
+          {
+            "node": "Find Visit Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Visit Context": {
+      "main": [
+        [
+          {
+            "node": "Has Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Error?": {
+      "main": [
+        [
+          {
+            "node": "Respond Not Found",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gemini Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Answer": {
+      "main": [
+        [
+          {
+            "node": "Format QA Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format QA Row": {
+      "main": [
+        [
+          {
+            "node": "Respond QA",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append QA Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Every 5 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Read Intake Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Intake Rows": {
+      "main": [
+        [
+          {
+            "node": "Filter Pending Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Pending Intake": {
+      "main": [
+        [
+          {
+            "node": "No Pending?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "No Pending?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Split Intake One By One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Intake One By One": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Build Gemini Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Gemini Request": {
+      "main": [
+        [
+          {
+            "node": "Gemini Parse Intake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Parse Intake": {
+      "main": [
+        [
+          {
+            "node": "Normalize Parsed Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Parsed Result": {
+      "main": [
+        [
+          {
+            "node": "Parse Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Error?": {
+      "main": [
+        [
+          {
+            "node": "Update Intake Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Structured Visit",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Intake Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Structured Visit": {
+      "main": [
+        [
+          {
+            "node": "Build Reminder Items",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Patient Questions Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Reminder Items": {
+      "main": [
+        [
+          {
+            "node": "Append Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Patient Questions Rows": {
+      "main": [
+        [
+          {
+            "node": "Append Patient Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "3db0862b-23e4-485d-b780-267a86dee949",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e93e57707c95f2a593609bcee22e992235ee60aa6cbc1b3c5563d1d8f8232841"
+  },
+  "id": "uvsKEj9rCmYEmJze",
+  "tags": []
+}

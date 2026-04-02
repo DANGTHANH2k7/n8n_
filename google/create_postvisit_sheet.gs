@@ -2,7 +2,8 @@ function createPostVisitSheet() {
   const ss = SpreadsheetApp.create('PostVisitAI_Database');
 
   const visitsHeaders = [
-    'visit_id',
+    'patient_id',
+    'visit_date',
     'patient_name',
     'diagnosis',
     'diagnosis_simplified',
@@ -17,7 +18,8 @@ function createPostVisitSheet() {
 
   const remindersHeaders = [
     'reminder_id',
-    'visit_id',
+    'patient_id',
+    'visit_date',
     'patient_name',
     'medication_name',
     'dosage',
@@ -29,7 +31,8 @@ function createPostVisitSheet() {
 
   const qnaHeaders = [
     'qa_id',
-    'visit_id',
+    'patient_id',
+    'visit_date',
     'patient_name',
     'question',
     'answer',
@@ -39,7 +42,8 @@ function createPostVisitSheet() {
   const logHeaders = [
     'log_id',
     'reminder_id',
-    'visit_id',
+    'patient_id',
+    'visit_date',
     'patient_name',
     'medication_name',
     'dosage',
@@ -50,7 +54,8 @@ function createPostVisitSheet() {
 
   const patientQuestionsHeaders = [
     'question_id',
-    'visit_id',
+    'patient_id',
+    'visit_date',
     'patient_name',
     'patient_question',
     'doctor_answer',
@@ -61,12 +66,13 @@ function createPostVisitSheet() {
 
   const intakeHeaders = [
     'intake_id',
+    'patient_id',
     'patient_name',
     'raw_note',
     'doctor_advice',
     'parsed_status',
     'parsed_at',
-    'visit_id',
+    'visit_date',
     'error_message'
   ];
 
@@ -89,9 +95,18 @@ function createPostVisitSheet() {
   const patientQuestions = ss.insertSheet('PatientQuestions');
   patientQuestions.getRange(1, 1, 1, patientQuestionsHeaders.length).setValues([patientQuestionsHeaders]);
 
+  // Sinh visit_date định dạng DDMMYY cho dữ liệu mẫu
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(-2);
+  const visitDateStr = `${dd}${mm}${yy}`;
+  const now = d.toISOString();
+
   // Add demo rows
   first.appendRow([
-    'V001',
+    'BN001',
+    visitDateStr,
     'Nguyen Van A',
     'Tang huyet ap giai doan 2',
     'Huyet ap cao, can uong thuoc dung gio',
@@ -108,23 +123,25 @@ function createPostVisitSheet() {
     ]),
     JSON.stringify({ date: '2 tuan', action: 'Tai kham + do huyet ap' }),
     'Bac si chan doan tang huyet ap va ke don Metoprolol 50mg.',
-    new Date().toISOString()
+    now
   ]);
 
   reminders.appendRow([
-    'R_V001_0800',
-    'V001',
+    `R_BN001_${visitDateStr}_0800`,
+    'BN001',
+    visitDateStr,
     'Nguyen Van A',
     'Metoprolol',
     '50mg',
     '08:00',
     '2 lan/ngay',
     'FALSE',
-    new Date().toISOString()
+    now
   ]);
 
   intake.appendRow([
     'INTAKE_001',
+    'BN001',
     'Nguyen Van A',
     'Bac si chan doan tang huyet ap giai doan 2. Ke don Metoprolol 50mg, uong 2 lan moi ngay luc 08:00 va 20:00 trong 30 ngay. Benh nhan can an it muoi, di bo 30 phut moi ngay. Neu dau dau du doi hoac non, can lien he bac si ngay. Tai kham sau 2 tuan.',
     'Uong Metoprolol 08:00 va 20:00 moi ngay, khong tu y doi gio.',
@@ -135,26 +152,28 @@ function createPostVisitSheet() {
   ]);
 
   reminders.appendRow([
-    'R_V001_2000',
-    'V001',
+    `R_BN001_${visitDateStr}_2000`,
+    'BN001',
+    visitDateStr,
     'Nguyen Van A',
     'Metoprolol',
     '50mg',
     '20:00',
     '2 lan/ngay',
     'FALSE',
-    new Date().toISOString()
+    now
   ]);
 
 
   patientQuestions.appendRow([
-    'PQ_V001_01',
-    'V001',
+    `PQ_BN001_${visitDateStr}_01`,
+    'BN001',
+    visitDateStr,
     'Nguyen Van A',
     'Neu quen 1 lieu Metoprolol thi phai lam sao?',
     '',
     'pending',
-    new Date().toISOString(),
+    now,
     ''
   ]);
 
