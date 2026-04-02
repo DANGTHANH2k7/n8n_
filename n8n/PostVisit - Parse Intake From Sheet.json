@@ -8,8 +8,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -2512,
-        48
+        -2544,
+        -224
       ],
       "id": "25f6f6a4-1c9b-4bed-94ff-f846142ccd26",
       "name": "Sticky Note"
@@ -406,8 +406,8 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        -2224,
-        64
+        -2256,
+        -208
       ]
     },
     {
@@ -422,6 +422,7 @@
           "mode": "name",
           "value": "Intake"
         },
+        "combineFilters": "OR",
         "options": {}
       },
       "id": "e785e7ca-8d55-4153-8b65-31105cad41dd",
@@ -429,8 +430,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        -1984,
-        64
+        -2016,
+        -208
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -441,15 +442,15 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = items.map(i => i.json);\nconst pending = rows.filter(r => {\n  const status = (r.parsed_status || 'pending').toLowerCase();\n  const hasRaw = (r.raw_note || '').trim().length > 0;\n  const hasAdvice = (r.doctor_advice || '').trim().length > 0;\n  return status === 'pending' && (hasRaw || hasAdvice);\n});\nif (!pending.length) return [{ json: { skip: true, message: 'No pending intake rows' } }];\nreturn pending.map(r => ({ json: {\n  intake_id: r.intake_id || `INTAKE_${Date.now()}`,\n  patient_name: r.patient_name || 'Unknown',\n  raw_note: r.raw_note || '',\n  doctor_advice: r.doctor_advice || '',\n  parsed_status: r.parsed_status || 'pending'\n} }));"
+        "jsCode": "const rows = items.map(i => i.json);\nconst pending = rows.filter(r => {\n  const status = (r.parsed_status || 'pending').toLowerCase();\n  const hasRaw = (r.raw_note || '').trim().length > 0;\n  const hasAdvice = (r.doctor_advice || '').trim().length > 0;\n  return status === 'pending' && (hasRaw || hasAdvice);\n});\nif (!pending.length) return [{ json: { skip: true, message: 'No pending intake rows' } }];\nreturn pending.map(r => ({ json: {\n  row_number: r.row_number,\n  intake_id: r.intake_id || `INTAKE_${Date.now()}`,\n  patient_id: r.patient_id || 'Unknown',\n  patient_name: r.patient_name || 'Unknown',\n  raw_note: r.raw_note || '',\n  doctor_advice: r.doctor_advice || '',\n  visit_date: r.visit_date, \n  parsed_status: r.parsed_status || 'pending'\n} }));"
       },
       "id": "de5ac410-1b7f-4347-86ce-f032d1009c55",
       "name": "Filter Pending Intake",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1744,
-        64
+        -1776,
+        -208
       ]
     },
     {
@@ -470,9 +471,19 @@
                 "type": "boolean",
                 "operation": "equal"
               }
+            },
+            {
+              "id": "1e30e6e9-fe07-422a-84ef-509e4450294a",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
             }
           ],
-          "combinator": "and"
+          "combinator": "or"
         },
         "options": {}
       },
@@ -481,8 +492,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -1504,
-        64
+        -1536,
+        -208
       ]
     },
     {
@@ -494,27 +505,28 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        -1264,
-        160
-      ]
+        -1328,
+        -672
+      ],
+      "alwaysOutputData": false
     },
     {
       "parameters": {
-        "jsCode": "return [{\n  json: {\n    intake_id: $json.intake_id,\n    patient_name: $json.patient_name,\n    raw_note: $json.raw_note,\n    doctor_advice: $json.doctor_advice || '',\n    geminiBody: {\n      contents: [\n        {\n          parts: [\n            {\n              text: `Ban la tro ly y khoa hau kham.\n\nYEU CAU BAT BUOC:\n1) Chi trich xuat thong tin da co trong du lieu bac si nhap.\n2) KHONG duoc suy dien, KHONG duoc tu bo sung gio uong thuoc, lieu dung hoac loi dan.\n3) Neu khong co thong tin thi de trong hoac ghi \"chua duoc chi dinh\".\n4) Truong doctorAdvice phai giu nguyen y nghia loi dan cua bac si.\n\nTra ve DUY NHAT JSON hop le (khong markdown, khong giai thich):\n\n{\n  \"diagnosis\": \"...\",\n  \"diagnosisSimplified\": \"...\",\n  \"doctorAdvice\": \"...\",\n  \"medications\": [\n    {\n      \"name\": \"...\",\n      \"dosage\": \"...\",\n      \"frequency\": \"...\",\n      \"timing\": \"...\",\n      \"days\": 0,\n      \"purpose\": \"...\"\n    }\n  ],\n  \"instructions\": [\n    {\"action\":\"...\",\"timing\":\"...\",\"importance\":\"High|Medium|Low\"}\n  ],\n  \"redFlags\": [\n    {\"symptom\":\"...\",\"action\":\"...\"}\n  ],\n  \"followUp\": {\"date\":\"...\",\"action\":\"...\"},\\n  \"unaskedQuestions\": [\"...\"]\\n}\n\nGhi chu kham (raw_note):\n${$json.raw_note}\n\nLoi dan bac si (doctor_advice):\n${$json.doctor_advice || ''}`\n            }\n          ]\n        }\n      ],\n      generationConfig: { temperature: 0.1 }\n    }\n  }\n}];"
+        "jsCode": "return [{\n  json: {\n    intake_id: $json.intake_id,\n    patient_id: $json.patient_id, \n    patient_name: $json.patient_name,\n    raw_note: $json.raw_note,\n    doctor_advice: $json.doctor_advice || '',\n    geminiBody: {\n      contents: [\n        {\n          parts: [\n            {\n              text: `Ban la tro ly y khoa hau kham.\n\nYEU CAU BAT BUOC:\n1) Chi trich xuat thong tin da co trong du lieu bac si nhap.\n2) KHONG duoc suy dien, KHONG duoc tu bo sung gio uong thuoc, lieu dung hoac loi dan.\n3) Neu khong co thong tin thi de trong hoac ghi \"chua duoc chi dinh\".\n4) Truong doctorAdvice phai giu nguyen y nghia loi dan cua bac si.\n5) CHỈ tóm tắt những gì bác sĩ nói. TUYỆT ĐỐI KHÔNG tự bịa ra câu hỏi hay bất kỳ thông tin nào không có thật\nTra ve DUY NHAT JSON hop le (khong markdown, khong giai thich):\n\n{\n  \"diagnosis\": \"...\",\n  \"diagnosisSimplified\": \"...\",\n  \"doctorAdvice\": \"...\",\n  \"medications\": [\n    {\n      \"name\": \"...\",\n      \"dosage\": \"...\",\n      \"frequency\": \"...\",\n      \"timing\": \"...\",\n      \"days\": 0,\n      \"purpose\": \"...\"\n    }\n  ],\n  \"instructions\": [\n    {\"action\":\"...\",\"timing\":\"...\",\"importance\":\"High|Medium|Low\"}\n  ],\n  \"redFlags\": [\n    {\"symptom\":\"...\",\"action\":\"...\"}\n  ],\n  \"followUp\": {\"date\":\"...\",\"action\":\"...\"},\\n  \\\n\nGhi chu kham (raw_note):\n${$json.raw_note}\n\nLoi dan bac si (doctor_advice):\n${$json.doctor_advice || ''}`\n            }\n          ]\n        }\n      ],\n      generationConfig: { temperature: 0.1 }\n    }\n  }\n}];"
       },
       "id": "9ba9d506-9a4b-4636-9346-69bc058f9142",
       "name": "Build Gemini Request",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1024,
-        160
+        -1168,
+        -224
       ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{$env.GEMINI_API_KEY}}",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=AIzaSyAg6GVp_iJ1yD7MBHpYzaLo8PsF5h3B2P0",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{$json.geminiBody}}",
@@ -525,21 +537,21 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -784,
-        160
+        -928,
+        -224
       ]
     },
     {
       "parameters": {
-        "jsCode": "const source = $item(0).$node['Build Gemini Request'].json;\nconst visitId = `V${Date.now()}`;\nconst now = new Date().toISOString();\nlet parseError = '';\nlet parsed = { diagnosis: '', diagnosisSimplified: '', doctorAdvice: '', medications: [], instructions: [], redFlags: [], followUp: {}, unaskedQuestions: [] };\n\ntry {\n  const raw = $json.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\n  const cleaned = raw.replace(/```json|```/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parseError = String(e.message || e);\n}\n\nreturn [{\n  json: {\n    intake_id: source.intake_id,\n    patient_name: source.patient_name,\n    raw_note: source.raw_note,\n    visit_id: visitId,\n    parsed_status: parseError ? 'error' : 'done',\n    parsed_at: now,\n    error_message: parseError,\n    diagnosis: parsed.diagnosis || '',\n    diagnosis_simplified: parsed.diagnosisSimplified || '',\n    doctor_advice: parsed.doctorAdvice || source.doctor_advice || '',\n    medications_json: JSON.stringify(parsed.medications || []),\n    instructions_json: JSON.stringify(parsed.instructions || []),\n    red_flags_json: JSON.stringify(parsed.redFlags || []),\n    follow_up_json: JSON.stringify(parsed.followUp || {}),    unasked_questions_json: JSON.stringify(parsed.unaskedQuestions || [])\n  }\n}];"
+        "jsCode": "const source = $item(0).$node['Build Gemini Request'].json;\nconst visitId = `V${Date.now()}`;\nconst now = new Date().toISOString();\nlet parseError = '';\nlet parsed = { diagnosis: '', diagnosisSimplified: '', doctorAdvice: '', medications: [], instructions: [], redFlags: [], followUp: {}, unaskedQuestions: [] };\n\ntry {\n  const raw = $json.candidates?.[0]?.content?.parts?.[0]?.text || '{}';\n  const cleaned = raw.replace(/```json|```/g, '').trim();\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parseError = String(e.message || e);\n}\n\nreturn [{\n  json: {\n    row_number:$('Split Intake One By One').first().json.row_number,\n    intake_id: source.intake_id,\n    patient_id:$('Build Gemini Request').first().json.patient_id,\n    patient_name: source.patient_name,\n    raw_note: source.raw_note,\n    visit_id: visitId,\n    visit_date: $('Split Intake One By One').first().json.visit_date,\n    parsed_status: parseError ? 'error' : 'done',\n    parsed_at: now,\n    error_message: parseError,\n    diagnosis: parsed.diagnosis || '',\n    diagnosis_simplified: parsed.diagnosisSimplified || '',\n    doctor_advice: parsed.doctorAdvice || source.doctor_advice || '',\n    medications_json: JSON.stringify(parsed.medications || []),\n    instructions_json: JSON.stringify(parsed.instructions || []),\n    red_flags_json: JSON.stringify(parsed.redFlags || []),\n    follow_up_json: JSON.stringify(parsed.followUp || {}),    unasked_questions_json: JSON.stringify(parsed.unaskedQuestions || [])\n  }\n}];"
       },
       "id": "e5d519b1-cfd9-4778-8c98-e528fbffc917",
       "name": "Normalize Parsed Result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -544,
-        160
+        -720,
+        -240
       ]
     },
     {
@@ -571,8 +583,8 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        -304,
-        160
+        -480,
+        -240
       ]
     },
     {
@@ -591,8 +603,7 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "patient_id": "={{ $('Read Intake Rows').item.json.patient_id }}",
-            "visit_date": "={{ $('Read Intake Rows').item.json.visit_date }}",
+            "visit_date": "={{ $json.visit_date }}",
             "patient_name": "={{ $json.patient_name }}",
             "diagnosis": "={{ $json.diagnosis }}",
             "diagnosis_simplified": "={{ $json.diagnosis_simplified }}",
@@ -602,7 +613,8 @@
             "red_flags_json": "={{ $json.red_flags_json }}",
             "follow_up_json": "={{ $json.follow_up_json }}",
             "created_at": "={{ $json.parsed_at }}",
-            "recording_text": "={{ $('Read Intake Rows').item.json.raw_note }}"
+            "recording_text": "={{ $json.raw_note }}",
+            "patient_id": "={{ $json.patient_id }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -737,8 +749,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        -64,
-        304
+        -192,
+        -224
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -749,15 +761,15 @@
     },
     {
       "parameters": {
-        "jsCode": "// Lấy data gốc từ bước Normalize (tránh bị Google Sheets làm mất)\nconst source = $items('Normalize Parsed Result')[0].json;\nconst meds = JSON.parse(source.medications_json || '[]');\nconst out = [];\n\nfor (const med of meds) {\n  const timingText = String(med.timing || '').trim();\n  if (!timingText || timingText.toLowerCase() === 'chua duoc chi dinh') continue;\n  \n  let slots = [];\n  // Tìm mốc giờ chuẩn xác (vd: \"08:00\", \"20:00\")\n  const timeRegex = /\\d{1,2}:\\d{2}/g;\n  const timeMatches = timingText.match(timeRegex);\n  \n  if (timeMatches && timeMatches.length > 0) {\n    // Nếu tìm thấy giờ chuẩn (HH:mm) thì dùng luôn\n    slots = timeMatches;\n  } else {\n    // Nếu không có giờ chuẩn, cắt chuỗi theo dấu phẩy hoặc chữ \"và\", \"va\"\n    slots = timingText\n      .split(/(?:[+,;\\/]| và | va | and )/i)\n      .map(s => s.replace(/^(lúc|luc)\\s+/i, '').trim()) // Xóa chữ \"lúc\" ở đầu\n      .filter(Boolean);\n  }\n\n  for (const slot of slots) {\n    out.push({\n      json: {\n        reminder_id: `R_${source.patient_id}_${source.visit_date}_${Date.now()}_${Math.floor(Math.random()*10000)}`,\n        patient_id: source.patient_id,\n        visit_date: source.visit_date,\n        patient_name: source.patient_name,\n        medication_name: med.name || '',\n        dosage: med.dosage || '',\n        time_slot: slot,\n        frequency: med.frequency || '',\n        completed: 'FALSE',\n        last_reminder: source.parsed_at\n      }\n    });\n  }\n}\nreturn out;"
+        "jsCode": "const source = $items('Normalize Parsed Result')[0].json;\nconst meds = JSON.parse(source.medications_json || '[]');\nconst out = [];\n\nfor (const med of meds) {\n  const timingText = String(med.timing || '').trim();\n  if (!timingText || timingText.toLowerCase() === 'chua duoc chi dinh') continue;\n  \n  let slots = [];\n  const timeRegex = /\\d{1,2}:\\d{2}/g;\n  const timeMatches = timingText.match(timeRegex);\n  \n  if (timeMatches && timeMatches.length > 0) {\n    slots = timeMatches;\n  } else {\n    slots = timingText\n      .split(/(?:[+,;\\/]| và | va | and )/i)\n      .map(s => s.replace(/^(lúc|luc)\\s+/i, '').trim())\n      .filter(Boolean);\n  }\n\n  for (const slot of slots) {\n    out.push({\n      json: {\n        reminder_id: `R_${source.patient_id}_${source.visit_date}_${Date.now()}_${Math.floor(Math.random()*10000)}`,\n        patient_id: source.patient_id,\n        visit_date: source.visit_date,\n        patient_name: source.patient_name,\n        medication_name: med.name || '',\n        dosage: med.dosage || '',\n        time_slot: slot,\n        frequency: med.frequency || '',\n        completed: 'FALSE',\n        last_reminder: source.parsed_at\n      }\n    });\n  }\n}\n\n// SỬA LỖI Ở ĐÂY: Tránh n8n dừng luồng (No Data) khi không có thuốc\nif (out.length === 0) {\n  return [{ json: { skip_reminder: true } }];\n}\n\nreturn out;"
       },
       "id": "f7c622e9-a105-4a0d-9483-85cd9d4d8eb0",
       "name": "Build Reminder Items",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        176,
-        304
+        96,
+        -224
       ]
     },
     {
@@ -784,8 +796,8 @@
             "frequency": "={{$json.frequency}}",
             "completed": "={{$json.completed}}",
             "last_reminder": "={{$json.last_reminder}}",
-            "patient_id": "={{ $('Read Intake Rows').item.json.patient_id }}",
-            "visit_date": "={{ $('Read Intake Rows').item.json.visit_date }}"
+            "patient_id": "={{ $json.patient_id }}",
+            "visit_date": "={{ $json.visit_date }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -892,8 +904,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        416,
-        304
+        528,
+        -160
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -907,8 +919,8 @@
         "operation": "update",
         "documentId": {
           "__rl": true,
-          "mode": "id",
-          "value": "={{$env.GOOGLE_SHEET_ID}}"
+          "value": "=1ObK98N2D7gm1ZM5I6l7K1DHLZCM7uV87zkaNrLmgwWg",
+          "mode": "id"
         },
         "sheetName": {
           "__rl": true,
@@ -917,76 +929,22 @@
         },
         "columns": {
           "mappingMode": "defineBelow",
-          "matchingColumns": [
-            "intake_id"
-          ],
           "value": {
-            "intake_id": "={{$json.intake_id}}",
-            "parsed_status": "={{$json.parsed_status}}",
-            "parsed_at": "={{$json.parsed_at}}",
-            "visit_id": "={{$json.visit_id}}",
-            "error_message": "={{$json.error_message}}"
-          }
-        },
-        "options": {}
-      },
-      "id": "43058c4c-6d61-44e9-9c37-2eeaf0a54305",
-      "name": "Update Intake Status",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        -64,
-        32
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "HLVLHyVgg6Jxdf2f",
-          "name": "Google Sheets account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "// Lấy data gốc từ bước Normalize (tránh bị Google Sheets làm mất)\nconst source = $items('Normalize Parsed Result')[0].json;\nconst qs = JSON.parse(source.unasked_questions_json || '[]');\nconst out = [];\n\nfor (const q of qs) {\n  const text = String(q || '').trim();\n  if (!text) continue;\n  \n  out.push({\n    json: {\n      question_id: `PQ_${source.patient_id}_${source.visit_date}_${Date.now()}_${Math.floor(Math.random()*10000)}`,\n      patient_id: source.patient_id,\n      visit_date: source.visit_date,\n      patient_name: source.patient_name,\n      patient_question: text,\n      doctor_answer: '',\n      status: 'pending',\n      created_at: source.parsed_at,\n      answered_at: ''\n    }\n  });\n}\nreturn out;"
-      },
-      "id": "f74eab11-24cc-4b94-b178-1cc8e1a7cf95",
-      "name": "Build Patient Questions Rows",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        176,
-        496
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "=1ObK98N2D7gm1ZM5I6l7K1DHLZCM7uV87zkaNrLmgwWg",
-          "mode": "id"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "PatientQuestions"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "question_id": "={{$json.question_id}}",
-            "patient_name": "={{$json.patient_name}}",
-            "patient_question": "={{$json.patient_question}}",
-            "doctor_answer": "={{$json.doctor_answer}}",
-            "status": "={{$json.status}}",
-            "created_at": "={{$json.created_at}}",
-            "answered_at": "={{$json.answered_at}}"
+            "intake_id": "={{ $('Parse Error?').item.json.intake_id }}",
+            "parsed_status": "={{ $('Parse Error?').item.json.parsed_status }}",
+            "parsed_at": "={{ $('Parse Error?').item.json.parsed_at }}",
+            "error_message": "={{ $('Parse Error?').item.json.error_message }}",
+            "patient_id": "={{ $('Parse Error?').item.json.patient_id }}",
+            "row_number": "={{ $('Parse Error?').item.json.row_number }}",
+            "doctor_advice": "={{ $('Parse Error?').item.json.doctor_advice }}"
           },
-          "matchingColumns": [],
+          "matchingColumns": [
+            "row_number"
+          ],
           "schema": [
             {
-              "id": "question_id",
-              "displayName": "question_id",
+              "id": "intake_id",
+              "displayName": "intake_id",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -1004,8 +962,28 @@
               "removed": false
             },
             {
-              "id": "visit_date",
-              "displayName": "visit_date",
+              "id": "patient_name",
+              "displayName": "patient_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "raw_note",
+              "displayName": "raw_note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "doctor_advice",
+              "displayName": "doctor_advice",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -1014,8 +992,8 @@
               "removed": false
             },
             {
-              "id": "patient_name",
-              "displayName": "patient_name",
+              "id": "parsed_status",
+              "displayName": "parsed_status",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -1023,8 +1001,8 @@
               "canBeUsedToMatch": true
             },
             {
-              "id": "patient_question",
-              "displayName": "patient_question",
+              "id": "parsed_at",
+              "displayName": "parsed_at",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -1032,8 +1010,18 @@
               "canBeUsedToMatch": true
             },
             {
-              "id": "doctor_answer",
-              "displayName": "doctor_answer",
+              "id": "visit_date",
+              "displayName": "visit_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "error_message",
+              "displayName": "error_message",
               "required": false,
               "defaultMatch": false,
               "display": true,
@@ -1041,31 +1029,15 @@
               "canBeUsedToMatch": true
             },
             {
-              "id": "status",
-              "displayName": "status",
+              "id": "row_number",
+              "displayName": "row_number",
               "required": false,
               "defaultMatch": false,
               "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "created_at",
-              "displayName": "created_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "answered_at",
-              "displayName": "answered_at",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
             }
           ],
           "attemptToConvertTypes": false,
@@ -1073,13 +1045,13 @@
         },
         "options": {}
       },
-      "id": "c07c437a-2914-442e-82f6-ea5f70424ac9",
-      "name": "Append Patient Questions",
+      "id": "43058c4c-6d61-44e9-9c37-2eeaf0a54305",
+      "name": "Update Intake Status",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        416,
-        496
+        688,
+        -592
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -1087,6 +1059,40 @@
           "name": "Google Sheets account"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "e1c8a0fa-6e82-49ba-82e7-7ed7559060f0",
+              "leftValue": "={{ $json.skip_reminder }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": "={{ false }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        272,
+        -224
+      ],
+      "id": "687da2fd-87be-4282-8087-23af42e293f4",
+      "name": "If Skip Reminder"
     }
   ],
   "pinData": {},
@@ -1323,11 +1329,6 @@
             "node": "Append Structured Visit",
             "type": "main",
             "index": 0
-          },
-          {
-            "node": "Update Intake Status",
-            "type": "main",
-            "index": 0
           }
         ]
       ]
@@ -1339,11 +1340,6 @@
             "node": "Build Reminder Items",
             "type": "main",
             "index": 0
-          },
-          {
-            "node": "Build Patient Questions Rows",
-            "type": "main",
-            "index": 0
           }
         ]
       ]
@@ -1352,18 +1348,47 @@
       "main": [
         [
           {
-            "node": "Append Reminders",
+            "node": "If Skip Reminder",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Build Patient Questions Rows": {
+    "Append Reminders": {
       "main": [
         [
           {
-            "node": "Append Patient Questions",
+            "node": "Update Intake Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Intake Status": {
+      "main": [
+        [
+          {
+            "node": "Split Intake One By One",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Skip Reminder": {
+      "main": [
+        [
+          {
+            "node": "Update Intake Status",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Reminders",
             "type": "main",
             "index": 0
           }
@@ -1376,7 +1401,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "3db0862b-23e4-485d-b780-267a86dee949",
+  "versionId": "6f36d4d3-b6ce-4459-942d-304c0e0ae2a0",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "e93e57707c95f2a593609bcee22e992235ee60aa6cbc1b3c5563d1d8f8232841"
